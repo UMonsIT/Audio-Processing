@@ -5,6 +5,7 @@
 \usepackage{soulutf8}
 \usepackage{amsmath}
 \usepackage{tikz}
+\usepackage[colorlinks=true, urlcolor=blue, linkcolor=darkgray, citecolor=darkgray]{hyperref}
 \usepackage[utf8]{inputenc}
 \usepackage{longtable}
 \usepackage[T1]{fontenc}
@@ -151,18 +152,19 @@
 	\vspace*{3cm}
 	\hfill
 	%
-	\begin{minipage}{0.18\linewidth}
+	\begin{minipage}{0.04\linewidth}
 		\begin{flushright}
-			\rule{0.5pt}{75pt}
+			\rule{0.5pt}{100pt}
 		\end{flushright}
 	\end{minipage}
 	%
-	\begin{minipage}{0.8\linewidth}
+	\begin{minipage}{0.95\linewidth}
 		\begin{flushleft}
-			\textsf{\textbf{Résumé réalisé par:}} Anthony Rouneau\\
-			\textsf{\textbf{Section:}} 2$^{\text{\`eme}}$ Bloc Master en 
+			\textsf{\textbf{Résumé réalisé par :}} Anthony Rouneau\\
+			\textsf{\textbf{Aidé par :}} Maximilien Charlier\\
+			\textsf{\textbf{Section :}} 2$^{\text{\`eme}}$ Bloc Master en 
 				Sciences Informatiques\\
-			\textsf{\textbf{Images:}} Proviennent du cours de M. Dutoit, M. Dupont et M. D'Alessandro.\\
+			\textsf{\textbf{Images :}} Proviennent du cours de M. Dutoit, M. Dupont et M. D'Alessandro.\\
 		\end{flushleft}
 	\end{minipage}
 	%
@@ -189,6 +191,291 @@
 %
 %
 \part{Dutoit -- Analyse bas niveau}
+	\section{Cell phone}
+		\subsection{Analyse du fichier audio}
+			\subsubsection*{Spectrogramme}
+				\alinea On utilise une \hl{fenêtre de pondération} pour afficher un spectrogramme. Au plus la taille de cette fenêtre 
+					est élevée, au plus on a de détails. Inversement, si on prend une petite fenêtre, on aura une vision globale, plus 
+					générale. \hl{Les différentes tailles ont chacune leurs avantages et inconvénients}. Un spectrogramme met en évidence
+					les \hl{formants}, qui peuvent être lu et reconnus par des spécialistes. Les fréquences sont sur l'axe vertical,
+					le temps sur l'axe horizontal, et l'intensité en couleur. Exemple de spectrogramme détaillé (plus précis sur les
+					couleurs) :
+				%
+				\begin{center}
+					\includegraphics[width=3in]{Images/spectrogram}
+				\end{center}
+				%
+				On affiche souvent un spectrogramme sur le fichier audio complet, ou en tout cas sur plusieurs mots.
+				%
+			%
+			\subsubsection*{Périodogramme}
+				\alinea Donne la \red{densité spectrale de puissance}.
+					L'axe horizontal affiche les fréquences (souvent normalisée pour représenter les fréquences entre 0 et Fe/2),
+					tandis que l'axe vertical donne l'amplitude. Le périodogramme s'applique généralement sur une lettre (voyelle) afin
+					d'en identifier les formants. Dans l'exemple suivant, Fe = 8kHz. On a donc 1 = 4kHz. On identifie
+					la \hl{fondamentale} à 125Hz (premier pic), et ses \hl{formants} (pics de plus haute amplitude) en 300,
+					1400 et 2700Hz.
+				%
+				\begin{center}
+					\includegraphics[width=3in]{Images/periodogram}
+				\end{center}
+				%
+			%
+		%
+		\subsection{Prédiction linéaire (LP) sur un segment}
+			\subsubsection*{Coarticulation}
+				\alinea La \red{coarticulation} est un problème venant du fait que la \hl{prononciation d'un son} dépend du son qui 
+					le précède et du son qui le suit. \c Ca vient du fait que les cordes vocales sont "mécaniques" et présentent 
+					une inertie.
+				%
+			%
+			\subsubsection*{Son voisé ($\sim$voyelle)}
+				\alinea On va chercher 10 coefficients ($A_z$) qui représente les positions de formants dans la parole. On va ensuite
+					pouvoir retrouver cette voix (la générer) grâce à un filtre tous-pôles ($\frac{1}{A_z}$)\footnote{\texttt{freqz} permet
+					d'obtenir la réponse en fréquence d'un filtre et son amplitude à partir de coefficients $A_z$}. 
+					Si on passe le signal de base par le filtre\footnote{\texttt{filter} permet d'appliquer un filtre à des échantillons.}
+					inverse de génération ($A_z$, qui est l'inverse de $\frac{1}{A_z}$), on obtient le \red{résidu du signal}, c'est à dire 
+					l'\hl{excitation sonore} (indépendante de la lettre formée) qui va définir la \hl{position des harmoniques et le pitch 
+					du son}.
+				%
+			\subsubsection*{Son non-voisé ($\sim$consonne)}	
+				\alinea Dans ce cas-ci, on va préférer utiliser un périodogramme moyenné (\texttt{pwelch}) afin d'avoir une 
+					meilleure estimée de la densité spectrale de puissance. L'excitation peut être générée à partir de 
+					données aléatoires (bruit blanc).
+				%		
+			%
+		%
+		\subsection{Prédiction linéaire sur le son entier (5400bits/s)}
+			\subsubsection*{Pitch constant}
+				\alinea Le truc ici est de générer une excitation qui restera la même pour tout segment de \hl{10ms de voix}.
+					On obtient alors un son très métallique, très peu naturel. Pour bien faire, on doit prendre en 
+					compte l'itération d'avant (retard $z$) dans le filtrage afin que toutes les frames soient correctement liées.
+					De plus, on doit faire attention à ce que les excitations (impulsions de Dirac) 
+					se rejoignent correctement (décalage nécessaire dans le cas
+					ou le nombre de segment choisi n'est pas un multiple de la fréquence d'échantillonnage).
+				%
+			%
+			\subsubsection*{Pitch adaptatif}
+				\alinea Pour chaque frame, on va analyser le pitch et générer une excitation qui y correspondra. On doit faire
+					attention au décalage qui est nécessaire pour lier les différentes excitation tout en gardant des fenêtres de 
+					$10ms$.
+				%
+			%
+			\subsubsection*{LPC10 (2400bits/s)}
+				\alinea Le même principe, mais avec des fenêtres plus grandes : $22.5ms$.
+			%
+		%
+		\subsection{CELP (14kbits/s)}
+			\alinea Le principe ici est de générer aléatoirement un \hl{dictionnaire d'excitations}, que l'on va \hl{filtrer par les
+				coefficients de l'analyse LPC} afin d'avoir des excitations plus riches que de simples impulsions de Dirac.
+			%
+		%
+	%
+	\section{MP3}
+		\subsection{Principe général}
+			\alinea Le principe général de la compression MP3 est d'ajuster la quantization du son en fonction de ce qui est 
+				audible ou pas. En effet, on peut\hl{ augmenter le ratio signal sur bruit} (S/N) en \hl{augmentant le bit rate},
+				mais ce n'est pas nécessaire de le faire sur toutes les bandes de fréquence de la même fa\c con. C'est pourquoi
+				on va utiliser un modèle de perception qui va nous guider pour savoir quelles bandes de fréquence améliorer et
+				quelles bandes de fréquence il faut 'laisser à l'abandon'.
+			%
+		%
+		\subsection{Analyse d'erreur par bande de fréquence}
+			\alinea Pour réaliser la compression, on a besoin d'ajuster chaque bande de fréquence. C'est pourquoi on aura également
+				besoin de sous-échantillonner les signaux pour pouvoir reconstruire le signal final. En effet, si on divise le
+				signal original en $M$ bandes de fréquences, on aura $M$ fois plus d'échantillons que le signal original. Ensuite,
+				on peut le passer dans un filtre "escalier" afin de le digitaliser. Si l'on veut retrouver le même nombre 
+				d'échantillons qu'avant le scaling, on va devoir sur-échantillonner. C'est ce qu'on appelle le sub-band filtering.
+				Le principe est donc de \hl{retirer des échantillons, de les remplacer par des zeros, et ensuite de passer le tout dans un
+				filtre qui va donner de la "couleur" à ces zéros}.
+			%
+			\begin{center}
+				\includegraphics[width=4in]{Images/subband} \hfill \includegraphics[width=2in]{Images/subband2}
+			\end{center}
+			%
+			\alinea En prenant un exemple, si on effectue cette opération sur un 'chirp', on aura un recouvrement total du spectre.
+				En effet, les filtres utilisés avant et après la digitalisation ne sont pas "idéaux", et ajoutent de l'erreur.
+				On a alors un effet de 'miroir en quadrature' :
+				\begin{center}
+					\includegraphics[width=5.5in]{Images/quadrature}
+				\end{center}
+				\begin{center}
+					\includegraphics[width=4.5in]{Images/chirp}
+				\end{center}
+				On va alors faire en sorte que les filtres $g_0$ et $g_1$ produisent des \hl{recouvrements spectraux qui s'annulent} 
+				réciproquement (Esteban \& Galland). Il y a plusieurs méthodes pour générer ces filtres. \hl{MP3 est un mélange de PQMF et 
+				de MDCF}. En particulier, le MP3 effectue 32 fois moins de calcul que le MDCF car il calcule les cas particuliers 
+				seulement.
+			%
+			\subsubsection*{Deux filtres simples}
+				\alinea Dans l'exemple avec le chirp (On prend H0 = G0 et H1 = G1), 
+					on a $M=2$. On a donc deux bandes : une passe-bas et une passe-haut. Les filtres H sont
+					appelés filtres "quarter-band" et permettent de supprimer l'aliasing.
+				%
+				\begin{center}
+					\includegraphics[width=1.5in]{Images/g0} \hfill \includegraphics[width=1.5in]{Images/g0-and-h0} \hfill
+					\includegraphics[width=1.5in]{Images/g1-and-h1} \hfill \includegraphics[width=1.5in]{Images/reconstruct}
+				\end{center}
+				%
+			%
+			\subsubsection*{Banque de filtres QMF}
+				\alinea Ces filtres garantissent une reconstruction parfaite, tout en acceptant de l'aliasing dans les bandes.
+					le fait d'additionner l'aliasing de chaque bande à la fin permet une annulation complète de l'aliasing.
+				%
+				\begin{center}
+					\includegraphics[width=2in]{Images/qmf1} \hfill \includegraphics[width=2in]{Images/qmf2} \hfill
+					\includegraphics[width=2in]{Images/qmf3}
+				\end{center}
+				%
+			%
+		%
+		\subsection{Encodage perceptuel}
+			\alinea Lorsqu'on encode un signal sur un certain nombre de bit, l'erreur d'encodage peut être élevé. On peut
+				baisser cette erreur en mettant des poids sur les sous-bandes de fréquence. En effet, on va utiliser l'amplitude
+				(en valeur absolue) maximum afin de trouver le 'niveau de précision' nécessaire à l'encodage de cette bande de fréquence.
+				On retrouve dans les exemples suivants : 1) un encodage typique sur 4 bits, 2) un encodage pondéré sur 4 bits, 3)
+				un encodage pondéré sur 4 bits où les poids ont été multipliés par 10. \\
+			%
+			\alinea Si on divisait les poids par $x$, on augmenterait la précision de l'encodage, mais on couperait les hautes amplitudes
+			(on considèrerait que le max des amplitudes est lui aussi divisé par $x$).
+			%
+			\begin{center}
+				\includegraphics[width=2in]{Images/quantization1} \hfill \includegraphics[width=2in]{Images/quantization2} \hfill 
+				\includegraphics[width=2in]{Images/quantization3} 
+			\end{center}
+			%
+			\alinea Le principe du MP3 est d'appliquer un tel encodage pondéré, en utilisant un modèle perceptuel calculé selon 
+				l'oreille humaine. On va donc accentuer la précision sur les zones où l'oreille humaine est sensible et
+				diminuer la précision dans les zones que l'oreille humaine n'entend pas. On dit donc que \hl{le signal sur bruit (SNR)
+				doit rester au dessus du SMR} (seuil défini par le modèle auditif).
+			%
+			\begin{center}
+				\includegraphics[width=3in]{Images/perceptual1} \hfill \includegraphics[width=3in]{Images/perceptual2}
+			\end{center}
+			%
+		%
+	%
+	\section{Watermarking}
+		\subsection{Principe général}	
+			\alinea Le principe du watermarking va être d'utiliser une encodage en \red{spread spectrum} classique, comme celui de l'ADSL 
+				sur le signal téléphonique, afin de cacher une information ou un message dans un signal audio. Pour ce faire,
+				on va considérer \hl{le signal audio comme étant le bruit}, et la watermark comme étant le signal d'origine.
+			%
+		\subsection{Spread spectrum}
+			\alinea On commence donc par encoder un message en bits. Ensuite, on va générer un "spread signal" qu'on utilisera pour
+				encoder le message dans le signal audio (qui est considéré comme le bruit). En effet, ce faisant, on peut
+				rendre la densité spectrale de puissance plus plate, et donc mieux faire passer 'incognito' la watermark dans le son.
+				Il reste alors à additionner le signal audio avec la watermark pour donner le son "watermarké".
+				Le nombre d'échantillons pris par le spread signal est calculé grâce à $\frac{Fs}{debit}$). Pour démoduler,
+				il faut alors multiplier les frames (autant de fois qu'il y a de bits dans le message) du son watermarké par 
+				le spread signal. 
+				\begin{center}
+					\includegraphics[width=6in]{Images/watermark}
+				\end{center}
+				\begin{center}
+					\includegraphics[width=6.5in]{Images/watermark-psd}
+				\end{center}
+			%
+		%
+		\subsection{Minimiser l'erreur}
+			\alinea En \hl{augmentant le gain (et donc le SNR)}, on réduit l'erreur, mais on augmente aussi l chance d'entendre 
+				la watermark. De plus, en \hl{diminuant le débit}, on peut également réduire l'erreur (réduire la zone de confusion 
+				entre les gaussiennes).
+			%
+			\begin{center}
+				\includegraphics[width=5.2in]{Images/watermark-error}
+			\end{center}
+			%
+			\alinea L'idée est donc de réduire le débit autant que possible, en poussant le gain un minimum. En particulier, on peut
+				\hl{augmenter le gain "juste ce qu'il faut"} pour ne pas avoir d'erreur de détection. Mais de cette manière, on risque
+				très probablement d'entendre la watermark au dessus de l'audio...
+			%
+			\begin{center}
+				\includegraphics[width=3.2in]{Images/watermark-security}
+			\end{center}
+		\subsection{Modèle sycho-acoustique}
+			\alinea On va donc utiliser le \hl{modèle psycho-acoustique} (PAM) pour augmenter le gain sur certaines bandes de fréquences
+				inaudibles. On va donc pousser le gain par bande de fréquence, jusqu'à atteindre la limite audible. Ceci se fait grâce 
+				à un \hl{"shaping filter"} (G) qui va faire coller la watermark au maximum au modèle auditif. Enfin, on a besoin
+				d'un \hl{filtre de Wiener} (H) qui va extraire la watermark du signal encodé. H est un filtre tous zéros (non-récursif),
+				et ses coefficients sont symétriques (filtre non-déphasant). 
+			%
+			\begin{center}
+				\includegraphics[width=6in]{Images/watermark-final}
+			\end{center}
+			%
+			\alinea Pour calculer H, on aurait idéalement besoin de connaître v, mais si on connaît v, ça ne sert à rien de démoduler le
+				signal... On va donc \hl{utiliser le spread spectrum pour estimer $\Phi_{\text{v v}}$.}
+			%
+			\begin{center}
+				\includegraphics[width=4in]{Images/watermark-h}
+			\end{center}
+			%
+		%
+	%
+	\pagebreak
+	%
+	\section{Dictation machine}
+		\subsection{Principe général}
+			\alinea Le principe ici est de calculer les probabilités d'obtenir des séquences de lettres. Formalisé, ça donne ceci :
+			%
+			\begin{center}
+				\includegraphics[width=4.25in]{Images/dictation}
+			\end{center}
+			%
+			\alinea On peut alors essayer de retrouver la lettre en fonction des fréquences détectées (et donc par leurs formants)
+				et éventuellement en fonction des lettres précédentes. On fonctionne généralement avec le \hl{logarithme des probabilités
+				afin d'avoir des nombres plus grands et plus comparables}
+			%
+		%
+		\subsection{Approche statique}
+			\begin{minipage}{0.75\textwidth}
+				\alinea Cette première approche suppose que l'ordre temporel des lettres n'a pas d'importance. C'est évidemment faux,
+				mais cela peut servir à introduire le sujet. On commence alors par calculer les \hl{probabilités a priori} ($P(X)$) des
+				lettres (probabilités de tomber sur la lettre $X$) en fonction du jeu de données. Ensuite, il reste à calculer les 
+				'likelihood' de chaque observation en fonction de chaque lettre. Ceci peut se faire grâce à un modèle gaussien.
+			\end{minipage}\hfill
+			\begin{minipage}{0.2\textwidth}
+				\begin{center}
+					\includegraphics[width=\textwidth]{Images/dictation-formants}
+				\end{center}
+			\end{minipage}
+			%
+			\begin{minipage}{0.4\textwidth}
+				\begin{center}
+					\includegraphics[width=\textwidth]{Images/dictation-gmm}
+				\end{center}
+			\end{minipage}\hfill
+			\begin{minipage}{0.55\textwidth}
+				\alinea Comme chaque lettre peut être représentée par une gaussienne, des mots peuvent être représentés par un modèle
+					de mélange de gaussiennes. Ce genre de modèle posera \hl{problème lorsque l'ordre des lettres à de l'importance}. 
+					Dans l'exemple, les mots 'you' (/iu) et 'we' (/ui) auront exactement le même modèle, et on ne pourra donc pas les
+					distinguer avec une telle approche. 
+				%
+			\end{minipage}~\\~\\~\\
+			%
+			\alinea On peut estimer un tel modèle grâce à un clustering (il faut prendre des valeurs réelles, où proche de celles-ci
+				pour initialiser k-means). Le problème est que \hl{k-means n'a qu'un sens géométrique}. On va faire appel à l'algorithme
+				d'\hl{Estimation-Maximisation} (E-M) avec les valeurs obtenues par k-means comme valeurs initiales.
+				Estimation = On calcule les probabilité pour une donnée d'appartenir à un modèle (cluster). Maximisation = On
+				recalcule les moyennes/variances pour maximiser la séparation entre les classes.
+			%
+		%
+		\subsection{Approche séquentielle}
+			\subsubsection*{HMMs}
+				\alinea On va utiliser ici des modèles de Markov cachés. Ces modèles sont des machines à états qui ont des probabilités
+					d'émission et de transition. Les probabilités de transitions sont nécessaires pour passer d'un état à un autre.
+					On va alors chercher le "best-path" parmi les modèles de Markov disponibles en utilisant l'algorithme de \hl{Viterbi}.
+				%
+			%
+			\subsubsection*{N-grams}
+				\alinea On va utiliser des probabilités que deux mots puissent se suivre. Par exemple, pour séparer 'hear' (/ir) et 'here'
+					(/ir), qui ont la même prononciation, on peut dire que le bigram ('we', 'here') est très peu probable. 
+					On peut calculer ces probabilités sur de grandes bases de données de phrases.
+				%
+			%
+		%
+	%
 %
 \pagebreak
 %
@@ -275,7 +562,7 @@
 					permet d'accorder le chroma à sa guise (pour varier du La à 440Hz par exemple).
 				%
 				\begin{center}
-					\includegraphics[width=3in]{Images/chroma}
+					\includegraphics[width=3in]{Images/chroma-eq} \hfill \includegraphics[width=3in]{Images/chroma}
 				\end{center}
 				%
 				\alinea Le chromagramme tel quel a un problème : il \hl{dépend de la précision de la FFT utilisée}. En effet, les fréquences
@@ -366,22 +653,28 @@
 				\alinea Pour remédier à ce problème, on peut \hl{amplifier l'amplitude des hautes fréquences} dans le spectre afin de 
 					marquer les changements abrupts. En effet, \hl{un changement soudain implique une montée d'énergie dans les hautes
 					fréquences}. C'est ce qu'on a fait dans l'exemple suivant; on a calculé l'énergie sur le spectre amplifié en hautes
-					fréquences. 
+					fréquences. \\
 				%
-				\begin{center}
-					\includegraphics[width=0.49\textwidth]{Images/onset-amplified}
-				\end{center}
+				\begin{minipage}{0.49\textwidth}
+					\includegraphics[width=\textwidth]{Images/onset-eq1}
+				\end{minipage} \hfill
+				\begin{minipage}{0.49\textwidth}
+					\includegraphics[width=\textwidth]{Images/onset-amplified}
+				\end{minipage}
 				%
 			%
 			\subsubsection{Variations spectrales}
 				\alinea On va ici regarder les changements entre des FFT consécutives. On va donc faire la \hl{différences entre plusieurs
 					FFT}. On ne \hl{garde que les différences positives} (et on retourne 0 sinon) car on cherche de nouvelles fréquences 
 					( si nouvelle - ancienne > 0 alors il est possible qu'une nouvelle note soit jouée). On finit par trouver des 
-					changements de fréquence fondamentale en accumulant ces différences pour chaque bande de fréquence.
+					changements de fréquence fondamentale en accumulant ces différences pour chaque bande de fréquence.\\
 				%
-				\begin{center}
+				\begin{minipage}{0.49\textwidth}
+					\includegraphics[width=3in]{Images/spectral-eq}
+				\end{minipage} \hfill
+				\begin{minipage}{0.49\textwidth}
 					\includegraphics[width=3in]{Images/spectral}
-				\end{center}
+				\end{minipage}~\\~\\
 				%
 				\alinea On a encore un problème à ce niveau-ci : Si un joueur de violon \hl{rejoue une même note}, on doit pouvoir détecter
 					la nouvelle note, mais la différence spectrale n'y verra rien car ce seront presque les même composantes en fréquences 
@@ -446,8 +739,17 @@
 		%
 		\subsection{Beats}
 			\alinea Une fois le tempo détecté, on peut s'attaquer à la détection des \red{beats} qui ne sont finalement que les 
-				\hl{pics principaux d'onset séparés par des périodes de tempo}. Il faut donc chercher à \hl{maximiser la fonction}
-				$$ \text{onsets} + \alpha \cdot \text{régularité du tempo} $$
+				\hl{pics principaux d'onset séparés par des périodes de tempo}. Il faut donc chercher à \hl{maximiser la fonction}\\
+				\begin{minipage}{0.5\textwidth}
+					\begin{flushright}
+						\includegraphics[width=0.75\textwidth]{Images/beat-eq}
+					\end{flushright}
+				\end{minipage} \hfill
+				\begin{minipage}{0.49\textwidth}
+					\begin{flushleft}
+						$ = \text{onsets} + \alpha \cdot \text{régularité du tempo} $
+					\end{flushleft}
+				\end{minipage}~\\~\\~\\				
 				$\alpha$ étant un facteur d'échelle, permettant de l'importance de la régularité du tempo. Le problème est que 
 				cette fonction demande un temps exponentiel à maximiser. On va donc avoir recours à de la \hl{programmation dynamique}
 				(stocker les résultats intermédiaires parce qu'ils se répètent dans les formules) afin de résoudre le problème
@@ -606,11 +908,18 @@
 				Il en ressort une """"puissance de résonance"""", qu'on peut apparenter aux probabilité en sortie du neurone. 
 				C'est par cette comparaison que l'on peut observer les résultats des couches intermédiaires d'un CNN.
 				(On multiplie les pixels par les poids des neurones). On peut donc voir les \hl{réseaux de neurones comme une 
-				manière de construire (durant la phase d'entraînement) d'appliquer une cascade, une banque de filtres.} 
+				manière de construire (durant la phase d'entraînement) d'appliquer une cascade, une banque de filtres.} \\
 			%
-			\begin{center}
-				\includegraphics[width=4in]{Images/cnn}
-			\end{center}
+			\begin{minipage}{0.6\textwidth}
+				\begin{center}
+					\includegraphics[width=\textwidth]{Images/cnn}
+				\end{center}
+			\end{minipage} \hfill
+			\begin{minipage}{0.39\textwidth}
+				\begin{center}
+					\includegraphics[width=\textwidth]{Images/nn-filter}
+				\end{center}
+			\end{minipage}~\\~\\~\\
 			%
 			\subsubsection{Réseaux de neurones convolutionnels (CNN)}
 				\alinea Les réseaux de neurones convolutionnels permettent de prendre des entrées avec énormément de dimensions.
@@ -654,7 +963,7 @@
 				\end{center}
 				%
 			%
-			\subsection{Amélioration 2}
+			\subsubsection{Amélioration 2}
 				\alinea Une autre amélioration (cf. (2) de l'image sur les MFCCs) serait de ne pas analyser le signal audio 
 					brut, mais d'\hl{analyser la sortie de la FFT} en la donnant en entrée à un réseau de neurones profond.
 					Le but étant de \hl{remplacer la banque de filtre de Mel par des "filtres" calculés par un réseau de neurones}.
@@ -687,7 +996,7 @@
 %
 \pagebreak
 %
-\part{D'Alessandro -- Traitement audio matériel}
+\part{D'Alessandro -- Synthèse musicale et audio temps-réel}
 	\section{Question 1}
 		\subsection{Question}
 			\alinea \red{Décrivez les notions de “temps-réel” vues des points de vue du système informatique et de l’utilisateur. 
@@ -696,7 +1005,45 @@
 			%
 		%
 		\subsection{\'Eléments de réponse}
-			\alinea %TODO Notes: hard real-time / human interaction + <1ms = confusion et >100?ms retard.
+			\subsubsection*{Temps-réel ordinateur (hard real-time)}
+				\alinea Le principe est que l'ordinateur garantisse une réponse dans des contraintes de temps spécifiques.
+					C'est à dire que l'ordinateur a $\Delta t$ secondes pour fournir une réponse, sans quoi la tâche échoue.
+					L'algorithme peut éventuellement soumettre une réponse sous-optimale juste pour être dans les temps.
+				%
+				\paragraph{Priority Inversion} Lorsque l'on veut faire du hard real-time, il faut éviter au maximum
+					les tâches qui sont plus lentes que votre tâche. C'est ce qu'on appelle l'inversion de priorité.
+					Ces tâches dépendent souvent d'interruptions systèmes qu'elles doivent attendre, ou encore de contraintes
+					physiques comme l'attente d'un disque dur, etc... Exemple :
+					\begin{itemize}
+						\setlength\itemsep{0cm}
+						\item Allocation mémoire (malloc)
+						\item mutex / semaphores
+						\item Accès disque dur
+						\item Appel sur la GUI
+						\item Accès réseau.
+					\end{itemize}
+					Toutes ces tâches sont dépendantes d'autres tâches pour être complétées, c'est pourquoi on ne peut pas 
+					garantir un moment auquel elles seront terminées.
+				%
+				\paragraph{Impact sur le feeling humain} Au plus une machine va se rapprocher du hard-realtime, au moins elle
+					sera 'human-friendly'. En effet, on va éviter au maximum les interfaces graphiques, les interactions avec
+					l'utilisateur, etc...
+				%
+			%
+			\subsubsection*{Temps-réel humain (HCI real-time)}
+				\alinea Cette définition de temps réel s'applique à la sensation utilisateur. Typiquement, on va faire en sorte
+					que l'ordinateur ou que la tâche réponde dans un laps de temps acceptable pour un humain. Cette fenêtre de 
+					temps est définie par la notion de retard ou de confusion temporelle de l'humain, et ce situe entre 1 et 100ms. 
+				%
+				\paragraph{Perception} L'être humain utilise plus que 5 sens pour interagir avec le monde, on peut citer par
+					exemple le retour visuel, le retour auditif, la conscience de la position de ses membres (proprioception),
+					le retour haptique, le modèle balistique (trajectoire emprunté par ses membres pour effectuer une action), etc...
+					Parler d'instantanéité revient alors à trouver un juste équilibre entre tous ces sens.
+				%
+				\paragraph{Retour audio} En particulier, les décalages audio pourraient être entendus par un homme, c'est pourquoi
+					on va chercher à éviter de lancer des tâches dont on ne peut mesurer le temps d'exécution dans le thread audio.
+					Garder ce thread audio aussi rapide et fluide permettra un sentiment d'instantanéité à l'oreille humaine.
+				%
 			%
 		%
 	%
@@ -709,7 +1056,22 @@
 			%
 		%
 		\subsection{\'Eléments de réponse}
-			\alinea %TODO priority inversion + ring buffer
+			\alinea L'utilisation du malloc dans le thread audio représente une inversion de priorité. En effet, le thread audio se veut
+				temps-réel (haute priorité) au niveau de la perception humaine, et malloc prend un temps indéterminé (faible priorité)
+				à s'exécuter. Comme le thread audio attend un certain laps de temps avant de prendre des entrées et sorties audio,
+				on risque de 'rater le bus' et de ne pas envoyer la sortie à temps (frame drop). Le buffer audio va alors répéter 
+				la dernière	séquence audio, provoquant un glitch, car le décalage provoqué dans la sinusoïdal demanderait théoriquement 
+				une énergie infinie dans les hautes fréquences, ce qui provoque un son dérangeant et audible. De plus, l'humain
+				est sensible aux changements de phase (mais pas à la phase en elle-même).
+			%
+			\begin{center}
+				\includegraphics[width=5.25in]{Images/glitch}
+			\end{center}
+			%
+			\alinea Pour arranger ce problème, on peut simplement ne pas utiliser de malloc pendant l'exécution du thread audio, mais 
+				sur un autre thread, ou avant que le thread audio ne se lance. Si ça a du sens, on peut aussi utiliser des structures 
+				de données ne demandant pas ce genre d'allocation mémoire, comme un ring buffer (il faut alors que toutes les données
+				ne soient pas à garder).
 			%
 		%
 	%
@@ -721,7 +1083,18 @@
 			%
 		%
 		\subsection{\'Eléments de réponse}
-			\alinea %TODO shcéma buffer + interruptions.
+			\alinea Dans un ordinateur modernes, énormément de processus fonctionnent grâce aux interruptions système.
+				On pourrait même dire qu'à part le "main" de l'application, tout le reste est fait d'interruptions.
+				C'est également comme ça que le thread audio fonctionne. Le callback audio est une fonction qui est déclenchée
+				par l'interruption "audio ready" du driver audio. Le buffer est envoyé vers les haut-parleurs à intervalle
+				régulier, et n'attend pas que les applications ait fini de le remplir.
+			%
+			\begin{center}
+				\includegraphics[width=4.5in]{Images/callback}
+			\end{center}
+			%
+			\alinea En pratique, le buffer envoie 64 échantillons à la fois, ce qui représente $ \frac{64}{44100} = 0.0015s$
+				de décalage entre deux sorties audio. On se trouve bien dans la fenêtre idéale pour l'impression humaine d'instantané.
 			%
 		%
 	%
@@ -734,7 +1107,23 @@
 			%
 		%
 		\subsection{\'Eléments de réponse}
-			\alinea %TODO 1) Thread séparé + Ring buffer + atomic values 2) ?
+			\paragraph{Méthode 1} La première méthode est d'utiliser un thread de calcul séparé du thread audio. Ce thread de calcul
+				sera relié au callback audio par un ring buffer. Il faut alors faire attention à ce que la tête d'écriture du buffer
+				ait toujours de l'avance sur la tête de lecture. Pour ce faire, il faudra faire attention à ce que le filtre traite
+				assez de données en même temps pour pouvoir avoir assez de données "en avance" que pour remplir le buffer à temps à 
+				chaque callback. On peut également retarder la première sortie audio en remplissant autant que possible le ring buffer,
+				et ensuite démarrer la sortie audio afin de "prendre de l'avance" et ne pas droper de frames. 
+				Pour que les calculs se rapprochent le plus possible du temps-réel, on va utiliser des types atomiques.
+				Et bien sûr, ne jamais faire d'inversion de priorité.
+			%
+			\paragraph{Méthode 2} Dans cette deuxième méthode, on suppose avoir le contrôle sur la taille du buffer audio.
+				Dans ce cas, on va chercher à avoir un buffer assez grand que pour attendre les données traitées par le filtre.
+				La taille idéal de ce dernier peut se calculer facilement : 
+				$$\frac{\text{\texttt{nb\_samples}}}{\text{\texttt{sampling\_freq}}} = 0.020s$$
+				Vu qu'on connaît en principe la fréquence d'échantillonnage, on peut calculer la taille du buffer à fixer.
+				On peut éventuellement prendre une taille un peu plus grande pour accorder un peu plus de temps que 20ms. 
+				Par exemple, si appliquer le filtre à l'audio prend 1ms, on va plutôt chercher un buffer de 21ms.
+				Tout ceci en ajoutant les bonnes pratiques énoncés dans la méthode 1 (types atomiques, ...).
 			%
 		%
 	%
@@ -746,7 +1135,37 @@
 			%
 		%
 		\subsection{\'Eléments de réponse}
-			\alinea %TODO revoir code CH1. /!\ humain sensible au changement de phase
+			\alinea  La synthèse additive consiste à additionner des signaux pour en former des nouveaux. 
+				Par exemple, avec la lumière si l'on additionne du rouge et du vert on obtient du jaune.
+				En audio, on peut reconstruire n'importe quel signal par l'addition de sinusoïde. Par exemple, 
+				un signal (presque) carré peut s'obtenir en additionnant une sinusoïde avec ces harmoniques (il faudrait les sommer
+				à l'infini pour obtenir un vrai signal carré). En audio on utilise extrêmement souvent des sinusoïdes. 
+				Étant donné leur usage courant plutôt que de calculer un sinus "from scracth" on utilise des tables contenant 
+				les valeurs de la sinusoïde entre 0 et 2pi. C'est ce qu'on appelle "wavetable". Les valeurs vont de -1 et 1.
+				Plus le système sera "puissant" plus l'on aura une une "wavetable" de grande taille (cela augmente la précision).
+			%
+			~\\
+			%		   
+		    \alinea Un phaseur permet de créer un signal en dent de scie. Celui-ci oscille entre 0 et 1 de façon cyclique.
+			% source https://fr.scribd.com/document/289610007/Designing-Sound-Andy-Farnell-pdf page 132 et 274
+		    \begin{center}
+		    	\includegraphics[width=5in]{Images/phasor}
+		    \end{center}
+		    \begin{center}
+		    	\includegraphics[width=2in]{Images/phasor-signal}
+		    \end{center}
+		    %
+			\alinea En changeant son amplitude, on peut le faire osciller entre 0 et 2pi pour l'utiliser comme index pour la "wavetable".
+				En changeant la fréquence du phaseur, on peut changer la fréquence du sinus. Exemple: Si l'on prend un phaser avec pour un
+				une fréquence de 2Hz et que l'on veut additionner deux sinus d'une fréquence respective de 2 et 4 Hz, il suffira de faire
+				wavetable(phaser(x)) + wavetable(phaser(2x)).
+			%
+			~\\
+			%		   
+			\alinea Il est donc possible de créer des signaux complexes avec ces deux outils combinés. De plus le phaseur permet de fournir
+				implicitement une base de temps pour les sinus. Un exemple visuel est donné 
+				\href{http://www.animations.physics.unsw.edu.au/jw/phasor-addition.html}{ici}%		   
+				\footnote{http://www.animations.physics.unsw.edu.au/jw/phasor-addition.html}.
 			%
 		%
 	%
@@ -758,8 +1177,21 @@
 			%
 		%
 		\subsection{\'Eléments de réponse}
-			\alinea %TODO a) utilisation de la tête d'écriture dans la lecture audio => on peut lire longtemps sans dépasser la mémoire.
-				    %TODO b) permet d'écrire la réponse impulsionnelle au fur et à mesure ?
+			\alinea Un buffer circulaire est un buffer à indice circulaire. C'est-à-dire qu'à la place de dépasser la taille du buffer
+				en incrémentant les indices d'accès au buffer, on va revenir au début de celui-ci. De plus, deux indices sont stockés
+				en mémoire : la tête de lecture et la tête d'écriture. Ils sont beaucoup utilisés en audio lorsque l'on veut séparer
+				écriture et lecture.
+			%
+			\paragraph{a)} Pour la visualisation de longs segments audio, le principe est d'écrire les signaux audio reçu ou envoyés
+				au buffer audio dans le buffer circulaire, et d'utiliser la tête de lecture dans le thread visuel. L'avantage est qu'on
+				peut régler la fréquence de rafraîchissement vidéo afin de ne pas avoir de ralentissement. On peut essayer de faire
+				en sorte que le thread visuel se rafraîchisse en même temps que l'on reçoit l'audio à visualiser. On va laisser alors un
+				peut d'avance à la tête d'écriture avant d'afficher les signaux audio au niveau visuel. Le tout sans jamais à avoir à 
+				allouer plus d'espace mémoire afin de ne pas avoir de ralentissement sur la visualisation.
+			%
+			\paragraph{b)} Même principe que la réponse à la question 5 -- On va chercher à stocker les résultats des calculs juste un peu
+				plus vite qu'on ne les lit dans le thread audio. Ceci permet de ne jamais avoir à attendre ces calculs et ainsi éviter
+				les glitchs audio.
 			%
 		%
 	%
@@ -770,7 +1202,36 @@
 			%
 		%
 		\subsection{\'Eléments de réponse}
-			\alinea %TODO Revoir site internet du labo...
+			\alinea Le principe d'un guide d'onde est de reproduire le son que pourrait produire un instrument à cordes. Pour ce faire,
+				on utilise 3 éléments principaux : 
+				\begin{itemize}
+					\setlength\itemsep{0cm}
+					\item Un gain -- Résonance.
+					\item Un délai -- Fréquence fondamentale de la note jouée.
+					\item Un filtre -- Timbre.
+				\end{itemize}
+				Ces trois éléments font parti d'une boucle mettant à jour les valeurs du buffer audio.
+			%
+			\paragraph{Gain} Le gain est ce qui va faire durer la note (résonner). En pratique, le gain $\in [0, 0.999999...]$
+				car s'il valait 1, la note ne s'arrêterait jamais et s'il valait plus que 1, le son finirait par saturer car son
+				amplitude ne ferait que croître. Ceci va donner une décroissance continue (image de gauche),
+				or, un vrai instrument à cordes donne plutôt une impulsion avant de décroître progressivement (image de droite).
+				Appliquer cela est un point d'amélioration du modèle de base des guides d'ondes.
+				\begin{center}
+					\includegraphics[width=4.5in]{Images/waveguide}
+				\end{center}
+			%
+			\paragraph{Délai} C'est ce qui va définir la fréquence fondamentale du son. En pratique, c'est la longueur du buffer contenant
+				les segments audio (bruit blanc) qui va définir la note jouée. En effet, il y a l'idée de répéter un même son (principe de
+				sinusoïde) et au plus le buffer sera petit, au plus la note sera aigüe car on va répéter le buffer plus de fois (pour une
+				même fréquence d'échantillonnage). Typiquement, on a : 
+				$$ \frac{\text{\texttt{sampling\_rate}}}{\text{\texttt{frequency}}} = \text{\texttt{buffer\_size}} $$
+				$$ \Leftrightarrow$$  
+				$$\frac{\text{\texttt{sampling\_rate}}}{\text{\texttt{buffer\_size}}} = \text{\texttt{frequency}} $$
+			%
+			\paragraph{Filtre} Typiquement, on va utiliser un filtre de type "biquad" (equalizer) pour influencer le timbre du son. 
+				De cette manière, on peut affecter la manière dont le son 'sonne' (type guitare, type mandoline, type piano, ...).
+				Le type de filtre utilisé peut donc influencer la qualité du son.
 			%
 		%
 	%
